@@ -1,0 +1,72 @@
+version: '2'
+networks:
+        logs:
+services:
+  mongodb:
+    hostname: mongo
+    restart: unless-stopped
+    container_name: mongo
+    image: mongo:3
+    volumes:
+       - /root/docker/storage/mn/mongodb:/data/db
+    networks:
+      - logs
+  elasticsearch:
+    hostname: elasticsearch
+    restart: unless-stopped
+    container_name: elasticsearch
+    image: docker.elastic.co/elasticsearch/elasticsearch-oss:6.6.1
+    volumes:
+      - /root/docker/storage/es/elasticsearchdata:/usr/share/elasticsearch/data
+    environment:
+      - http.host=0.0.0.0
+      - transport.host=localhost
+      - network.host=0.0.0.0
+      - node.max_local_storage_nodes=4
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    mem_limit: 1g
+    networks:
+      - logs
+  graylog:
+    restart: unless-stopped
+    container_name: graylog
+    image: 0xhale/graylog_withsso:3.3
+    environment:
+      - GRAYLOG_PASSWORD_SECRET=${GRAYLOG_PASSWORD_SECRET}
+      - GRAYLOG_ROOT_PASSWORD_SHA2=${GRAYLOG_ROOT_PASSWORD_SHA2}
+      - GRAYLOG_HTTP_BIND_ADDRESS=0.0.0.0:9000
+      - GRAYLOG_HTTP_EXTERNAL_URI=https://graylog.${COMMON_DOMAIN}/
+      - GRAYLOG_ALLOW_LEADING_WILDCARD_SEARCHES=true
+      - GRAYLOG_TRUSTED_PROXIES=172.19.0.0/16
+    depends_on:
+      - mongodb
+      - elasticsearch
+    ports:
+      # Syslog TCP
+      - 8514:8514
+      - 8515:8515
+      # Syslog UDP
+      - 8514:8514/udp
+      - 8515:8515/udp
+    networks:
+      - logs
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.middlewares.graylog-redirect-redirectscheme.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.graylog-redirect-redirectscheme.redirectscheme.permanent=true"
+      - "traefik.http.routers.graylog-http.rule=Host(`graylog.${COMMON_DOMAIN}`)"
+      - "traefik.http.routers.graylog-http.middlewares=graylog-redirect-redirectscheme"
+      - "traefik.http.routers.graylog-http.entrypoints=http"
+      - "traefik.http.routers.graylog-https.rule=Host(`graylog.${COMMON_DOMAIN}`)"
+      - "traefik.http.routers.graylog-https.entrypoints=https"
+      - "traefik.http.routers.graylog-https.service=graylog-https"
+      - "traefik.http.routers.graylog-https.tls.certresolver=cloudflare"
+      - "traefik.http.services.graylog-https.loadbalancer.server.port=9000"
+      - "traefik.http.middlewares.oauth.forwardauth.address=http://oauth:4181"
+      - "traefik.http.middlewares.oauth.forwardauth.trustForwardHeader=true"
+      - "traefik.http.middlewares.oauth.forwardauth.authResponseHeaders=X-Forwarded-User"
+      - "traefik.http.routers.graylog-https.middlewares=oauth"
