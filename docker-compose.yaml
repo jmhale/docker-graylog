@@ -41,7 +41,7 @@ services:
       - GRAYLOG_HTTP_BIND_ADDRESS=0.0.0.0:9000
       - GRAYLOG_HTTP_EXTERNAL_URI=https://graylog.${COMMON_DOMAIN}/
       - GRAYLOG_ALLOW_LEADING_WILDCARD_SEARCHES=true
-      - GRAYLOG_TRUSTED_PROXIES=172.19.0.0/16
+      - GRAYLOG_TRUSTED_PROXIES=172.23.0.0/16
     depends_on:
       - mongodb
       - elasticsearch
